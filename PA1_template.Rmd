@@ -7,12 +7,62 @@ output:
 
 
 ## Loading and preprocessing the data
+First read in the data from the "activity.zip" file in the working directory and convert the data in the "Date"  column into date format
+```{r Load, echo = TRUE}
+setwd("C:/Users/Keith_2/Documents/R/RepData_PeerAssessment1")
+alldata<-read.csv(unzip("activity.zip")) 
+alldata$date<-as.Date(alldata$date)
 
 
+```
+Here is an example of the data:
+```{r example}
+head(alldata,7)
+```
+
+
+Here is a summary of the data
+```{r summary, echo = TRUE}
+
+print(summary(alldata))
+library(plyr)
+library(ggplot2)
+stepna<-round(100* sum(is.na(alldata$steps))/nrow(alldata),1);
+dur<-max(alldata$date)-min(alldata$date) + 1
+samps <- max(alldata$interval)/5 + 1
+stepsperday<-ddply(alldata, .(date),summarize,
+                    dsteps=sum(steps),
+                    nasteps = sum(is.na(steps)))
+       
+
+nadays<-sum(stepsperday$nasteps>0)
+
+```
+
+The duration of the data sampling was `r dur` days with and `r nadays` of those days having no data. `r stepna`% of the samples were NA.
 
 ## What is mean total number of steps taken per day?
+To calculate the mean and median number of steps taken per day, we will calculate the number the total number of steps per day and then take the mean
+
+Ignoring days where no data is available, the mean number steps are taken each day is:
+
+```{r Mean steps per day, echo=TRUE}
+
+round(mean(stepsperday$dsteps,na.rm = TRUE),0)
 
 
+
+```
+And the median is :
+
+
+```{r Median steps per day, echo=TRUE}
+
+round(median(stepsperday$dsteps,na.rm = TRUE),0)
+
+
+
+```
 
 ## What is the average daily activity pattern?
 
