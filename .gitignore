@@ -2,3 +2,10 @@
 *.csv
 *.md
 .Rproj.user/*
+*.png
+*.RData
+*.Rhistory
+*.rdb
+*.rdx
+DocumentName_cache/__packages
+*.xlsx

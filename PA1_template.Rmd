@@ -1,75 +1,148 @@
+
+
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
+title: 'Reproducible Research: Peer Assessment 1'
+output:
   html_document:
-    keep_md: true
+    keep_md: yes
+  pdf_document: default
+  
+ 
 ---
 
 
 ## Loading and preprocessing the data
 First read in the data from the "activity.zip" file in the working directory and convert the data in the "Date"  column into date format
-```{r Load, echo = TRUE}
+```{r Load Data, echo = TRUE}
 setwd("C:/Users/Keith_2/Documents/R/RepData_PeerAssessment1")
 alldata<-read.csv(unzip("activity.zip")) 
 alldata$date<-as.Date(alldata$date)
 
-
+options(scipen = 4) #Forces large numbers to be printed in standard form by knitR
 ```
 Here is an example of the data:
-```{r example}
-head(alldata,7)
+```{r example data}
+alldata[5000:5007,]
 ```
-
 
 Here is a summary of the data
-```{r summary, echo = TRUE}
+```{r summary of the data, echo = TRUE}
 
 print(summary(alldata))
+
+#Required libraries
 library(plyr)
 library(ggplot2)
-stepna<-round(100* sum(is.na(alldata$steps))/nrow(alldata),1);
-dur<-max(alldata$date)-min(alldata$date) + 1
-samps <- max(alldata$interval)/5 + 1
-stepsperday<-ddply(alldata, .(date),summarize,
-                    dsteps=sum(steps),
-                    nasteps = sum(is.na(steps)))
-       
+library("scales", lib.loc="~/R/win-library/3.1")
 
-nadays<-sum(stepsperday$nasteps>0)
+#calculate percentage of rows that have NA in the steps column
+stepna<-round(100* sum(is.na(alldata$steps))/nrow(alldata),1)
+
+#calculate time period over which samples were taken
+dur<-max(alldata$date)-min(alldata$date) + 1
+
+#count number of days that had NA value
+nadays<-sum(stepsperday$nasteps>0) 
 
 ```
 
-The duration of the data sampling was `r dur` days with and `r nadays` of those days having no data. `r stepna`% of the samples were NA.
+The data was collected over a `r dur` day period with and `r nadays` of those days having no data. `r stepna`% of the samples were NA.
 
 ## What is mean total number of steps taken per day?
-To calculate the mean and median number of steps taken per day, we will calculate the number the total number of steps per day and then take the mean
 
-Ignoring days where no data is available, the mean number steps are taken each day is:
+This is a plot of steps by day
 
-```{r Mean steps per day, echo=TRUE}
+```{r Plot of steps by day}
+# function returns list with mean, median and a plot
+plotsteps<-function(data,title){
 
-round(mean(stepsperday$dsteps,na.rm = TRUE),0)
+#totals by day the number of steps and the numbers of samples that were NA
+stepsperday<-ddply(data, .(date),summarize, 
+                    dsteps=sum(steps),
+                    nasteps = sum(is.na(steps)))
+stepsperday$date<-as.Date(stepsperday$date)      
+  
+  #calculate mean number of steps per day
+smean<-round(mean(stepsperday$dsteps,na.rm = TRUE),0)
+
+#calculate median number of steps per
+smedian<-round(median(stepsperday$dsteps,na.rm = TRUE),0)
+
+#build histogram of total steps per day 
+graph<-ggplot(stepsperday,aes(dsteps)) +
+              geom_histogram(fill = "steelblue", binwidth = 500) + 
+              ylim(0,15) +
+              labs(list(title = title, x="Number of Steps", y ="Number of Days"))
+print(summary(stepsperday$dsteps))              
+
+out  <- list(mean = smean, median = smedian,graph = graph)
 
 
+}
+
+a<-plotsteps(alldata, "Steps per Day")
+
+print(a$graph)
 
 ```
-And the median is :
 
-
-```{r Median steps per day, echo=TRUE}
-
-round(median(stepsperday$dsteps,na.rm = TRUE),0)
-
-
-
-```
+Ignoring days where no data is available, the mean number steps are taken each day is `r a$mean` and the median is `r a$median`
 
 ## What is the average daily activity pattern?
+First calculate the average number of steps by 5 minute period
+```{r average daily activity pattern}
+avgstepsbyperiod<-ddply(alldata,.(interval),summarize,
+                        avg = mean(steps,na.rm = TRUE))
+#avgstepsbyperiod$interval<-as.POSIXct(interval, format = "%h%m")
+
+graph<-ggplot(avgstepsbyperiod,aes(interval,avg)) +
+              geom_line(stat = "identity" , fill = "grey") + 
+ #             scale_x_datetime(breaks = date_breaks("1 hour"), labels = date_format("%H:%M")) +
+              labs(list(title = "Average Steps per Interval", 
+                        x     = "Interval", 
+                        y     = "Average Number of Steps"))
+print(graph)
+
+moststeps<-avgstepsbyperiod[avgstepsbyperiod$avg == max(avgstepsbyperiod$avg),]
 
 
+```
+
+The interval with the greatest number of steps over the sample period is `r moststeps$interval` with and average of `r round(moststeps$avg,1)` steps.  
 
 ## Imputing missing values
 
+``` {r Count Missing Values}
+#Calculate the number of rows with missing data
+missing<-!complete.cases(alldata)
+incrows<-sum(missing)
 
+```
+1. There are `r incrows` rows with missing data.  
+
+2. Values to complete these data are imputed from the mean number of steps for that 5 minute period calculated from the rest of the dataset.  Because there are eight entire days that have no data (steps = NA for every interval), it is possible to have R automatically recycle the average steps by period data calcuated above to fill the missing values into the incomplete cases
+
+3. Now to create a new data set with the NA values complete
+```{r Impute Missing values}
+#make a copy of the original
+newdata<-alldata
+
+# put the average steps by period calculated above into the incomplete cases.  R will automatically recycle the data so that all eight days are updated
+newdata[!complete.cases(newdata),"steps"]<- avgstepsbyperiod$avg
+
+# now recalculate the number of rows with missing data
+incrows<-sum(!complete.cases(newdata))
+``` 
+
+  Now `r incrows` rows are missing data
+
+4. Now use the function defined above calculate mean and median and graph the new data set
+```{r Recalculate mean and median}
+b<-plotsteps(newdata, "Steps per Day with Missing Values Imputed")
+
+print(b$graph)
+```             
+
+The mean is now `r b$mean` and the median is `r b$median`.  By definition, using the 5-minute interval means to replace NAs will not change the 5-minute means and therefore the overall daily mean doesn't change because all that we have done is add eight additional days worth of data with the mean number of steps.  However we would expect the median to change slightly by adding eight further days of data with a value higher than the mean calculated from missing data 
 
 ## Are there differences in activity patterns between weekdays and weekends?
